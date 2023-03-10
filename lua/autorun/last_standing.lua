@@ -16,41 +16,31 @@ local yellow_color = table.ToString(Color(200, 160, 0))
 local red_color = table.ToString(Color(230, 0, 0))
 
 -- Function for counting the ammount of players and their in-game roles so we can work with them
-local CountActiveRolePlayers = function()
+local ActiveRolePlayers = function()
+    local result = {}
 
-	-- Create players object to keep track of each players' roles
-	local players = {}
+	result.innocent = {}
 
-    players.innocents = {}
-	
-	players.traitors = {}
-	
-	players.detectives = {}
-    
+	result.traitor = {}
+
+	result.detective = {}
+
 	for _, ply in ipairs( player.GetAll() ) do
+
+		if !IsValid(ply) or !ply:IsActive() then continue end
 		
-		if (IsValid(ply) and ply:IsActive() and ply:GetRole() == ROLE_INNOCENT) then
-
-			table.insert(players.innocents, ply)
-
-		elseif (IsValid(ply) and ply:IsActive() and ply:GetRole() == ROLE_TRAITOR) then
-
-			table.insert(players.traitors, ply)
-
-		elseif (IsValid(ply) and ply:IsActive() and ply:GetRole() == ROLE_DETECTIVE) then
-
-			table.insert(players.detectives, ply)
-
-		end
+		table.insert(result[ply:GetRoleString()], ply)
 	
 	end
     
-	return players
+	return result
 
 end
 
 local GetLastInnocentStanding = function()
+
 	for _, ply in ipairs( player.GetAll() ) do
+		
 		if (!ply:IsSpec() and ply:IsActive() and !ply:IsTraitor() and !ply:IsActiveTraitor() and ply:IsTerror()) then
 			return ply:Name()
 		end
@@ -67,7 +57,6 @@ hook.Add("TTTBeginRound", "InitTTTLastInnocentAlive", function()
 		if !cvar_enable then broadcasted = true return end
 		if cvar_if_one_t then return end
 		broadcasted = false
-		local players = CountActiveRolePlayers()
 	end
 end)
 
@@ -77,20 +66,20 @@ if SERVER then
        	if !cvar_enable then broadcasted = true return end
 		if broadcasted then return end
 		if ply:IsGhost() then return end
-		local players = CountActiveRolePlayers()
-		
-		if ((#players.innocents == 1 or #players.detectives == 1) and #players.traitors > 0) then
+		local players = ActiveRolePlayers()
+		if ((#players.innocent == 1 or #players.detective == 1) and #players.traitor > 0) then
 			
 			-- Don't do anything if "warn only if there is more than 1 traitor" cvar is enabled
-			if (!cvar_if_one_t and #players.traitors == 1) then broadcasted = false return end
+			if (!cvar_if_one_t and #players.traitor == 1) then broadcasted = false return end
 			
 			-- Same as above, but if the "warn detectives" is disabled
-			if (!cvar_warn_detective and #players.detectives > 0) then broadcasted = false return end
+			if (!cvar_warn_detective and #players.detective > 0) then broadcasted = false return end
 
 			print(GetLastInnocentStanding() .. " é o último Inocente vivo!")
 
 			-- Quick and easy (but not the best) way of propagating the message to all players in the server
 			BroadcastLua("chat.AddText(" .. red_color .. ", '" .. GetLastInnocentStanding() .. "', " .. yellow_color .. ", ' é o '," .. red_color .. ", 'último Inocente'," .. yellow_color .. ", ' vivo! '," .. red_color .. ", 'MATE TODOS!!!')")
+			ULib.csay( nil, GetLastInnocentStanding() .. " é o último Inocente vivo! Mate Todos", Color( 255, 0, 0 ) )
 			
 			-- Avoid repeated warnings after first one
 			broadcasted = true
@@ -99,24 +88,34 @@ if SERVER then
 	
 	end)
 
+	hook.Add('PlayerSpawn', identifier, function(ply, transitio ) 
+		print(ply)
+	end)
+
+
 	hook.Add("PlayerDisconnected", "CheckIfLastInnocentAliveAfterDisconnect", function(ply)
 		if (GetRoundState() != ROUND_ACTIVE) then return end
 		if !cvar_enable then return end
         if broadcasted then return end
-		local players = CountActiveRolePlayers()
-		
-		if ((#players.innocents == 1 or #players.detectives == 1) and #players.traitors > 0) then
+		local players = ActiveRolePlayers()
+
+		table.remove(players[ply:GetRoleString()], table.KeyFromValue(players, ply))
+		if ((#players.innocent == 1 or #players.detective == 1) and #players.traitor > 0) then
+
 			
 			-- Don't do anything if "warn only if there is more than 1 traitor" cvar is enabled
-			if (!cvar_if_one_t and #players.traitors == 1) then broadcasted = false return end
+			if (!cvar_if_one_t and #players.traitor == 1) then broadcasted = false return end
 			
 			-- Same as above, but if the "warn detectives" is disabled
-			if (!cvar_warn_detective and #players.detectives > 0) then broadcasted = false return end
+			if (!cvar_warn_detective and #players.detective > 0) then broadcasted = false return end
 
 			print(GetLastInnocentStanding() .. " é o último Inocente vivo!")
 
 			-- Quick and easy (but not the best) way of propagating the message to all players in the server
-			BroadcastLua("chat.AddText(" .. red_color .. "'" .. GetLastInnocentStanding() .. "'" .. yellow_color .. ", ' é o '," .. red_color .. ", 'último Inocente'," .. yellow_color .. ", ' vivo! '," .. red_color .. ", 'MATE TODOS!!!')")
+			BroadcastLua("chat.AddText(" .. red_color .. ", '" .. GetLastInnocentStanding() .. "', " .. yellow_color .. ", ' é o '," .. red_color .. ", 'último Inocente'," .. yellow_color .. ", ' vivo! '," .. red_color .. ", 'MATE TODOS!!!')")
+			
+			-- Show centralized Red Text 
+			ULib.csay( nil, GetLastInnocentStanding() .. " é o último Inocente vivo! Mate Todos", Color( 255, 0, 0 ) )
 
 			-- Avoid repeated warnings after first one
 			broadcasted = true
